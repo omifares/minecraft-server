@@ -1,0 +1,78 @@
+services:
+  mc-server:
+    image: itzg/minecraft-server:latest
+    container_name: mc-server
+    restart: no
+    pull_policy: daily
+    tty: true
+    stdin_open: true
+    env_file:
+      - .env
+      - server.properties.env
+      - plugins.env
+    ports:
+      - "${MC_PORT}:25565/tcp" 
+      - "${MC_PORT}:25565/udp" 
+      - "${RCON_PORT}:25575/udp"
+      - "${RCON_PORT}:25575/tcp"
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      MEMORY: 4G
+      USE_AIKAR_FLAGS: "true"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "${RCON_PASS}"
+      UID: 1001
+      GID: 1001
+      TZ: America/Sao_Paulo
+    depends_on:
+      restore-backup:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/data
+      - /home/ubuntu/minecraft-backups:/backups
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 5G
+
+  mc-backup:
+    image: itzg/mc-backup:latest
+    container_name: mc-backup
+    user: "0:0"
+    environment:
+      RCON_HOST: "mc-server"
+      RCON_PASSWORD: "${RCON_PASS}"
+      BACKUP_INTERVAL: "24h"
+      PRUNE_BACKUPS_COUNT: 3
+      INITIAL_DELAY: "1m"
+      TZ: America/Sao_Paulo
+      BACKUP_METHOD: "rclone"
+      RCLONE_REMOTE: "r2"
+      RCLONE_DEST_DIR: "minecraft-backup"
+      RCLONE_S3_NO_CHECK_BUCKET: "true"
+    volumes:
+      - ./data:/data:ro
+      - /home/ubuntu/minecraft-backups:/backups
+      - ./rclone.conf:/config/rclone/rclone.conf:ro
+    depends_on:
+      mc-server:
+        condition: service_healthy
+
+  restore-backup:
+    image: itzg/mc-backup
+    restart: "no"
+    entrypoint: restore-tar-backup
+    volumes:
+      - ./data:/data
+      - /home/ubuntu/minecraft-backups:/backups:ro
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_exporter
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'

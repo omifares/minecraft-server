@@ -1,0 +1,111 @@
+---
+- name: Deploy Minecraft Server
+  hosts: minecraft
+  vars:
+    server_dir: /home/ubuntu/minecraft-server
+    backup_dir: /home/ubuntu/minecraft-backups
+
+  tasks:
+    - name: Garantir diretórios do servidor e backups
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ server_dir }}"
+        - "{{ backup_dir }}"
+        - "{{ server_dir }}/data"
+
+    - name: Criar arquivo .env no servidor
+      copy:
+        dest: "{{ server_dir }}/.env"
+        content: |
+          RCON_PASS={{ lookup('env', 'RCON_PASS') }}
+          MC_PORT={{ lookup('env', 'MC_PORT') }}
+          RCON_PORT={{ lookup('env', 'RCON_PORT') }}
+          PROM_URL="{{ lookup('env', 'PROM_URL') }}"
+          PROM_USER={{ lookup('env', 'PROM_USER') }}
+          PROM_PASS={{ lookup('env', 'PROM_PASS') }}
+          R2_ACCESS_ID={{ lookup('env', 'R2_ACCESS_ID') }}
+          R2_SECRET_KEY={{ lookup('env', 'R2_SECRET_KEY') }}
+          R2_ENDPOINT="{{ lookup('env', 'R2_ENDPOINT') }}"
+        mode: '0600'
+      register: env_file
+
+    - name: Gerar configuração do rclone (Cloudflare R2)
+      template:
+        src: templates/rclone.conf.j2
+        dest: "{{ server_dir }}/rclone.conf"
+        mode: '0600'
+
+    - name: Verificar se a pasta do mundo existe no servidor
+      stat:
+        path: "{{ server_dir }}/data/world"
+      register: world_dir
+
+    - name: Baixar o backup do R2 via Docker (Disaster Recovery)
+      command: >
+        docker run --rm
+        -v /home/{{ ansible_user }}/minecraft-server/rclone.conf:/config/rclone/rclone.conf:ro
+        -v /home/{{ ansible_user }}/minecraft-backups:/backups
+        rclone/rclone copy r2:minecraft-backup /backups/
+      when: not world_dir.stat.exists    
+
+    - name: Localizar backups baixados na VM
+      find:
+        paths:
+          - "{{ backup_dir }}"
+        patterns: "*.tar.gz"
+      register: found_backups
+      when: not world_dir.stat.exists
+
+    - name: Restaurar o backup mais recente automaticamente
+      unarchive:
+        src: "{{ (found_backups.files | sort(attribute='mtime') | last).path }}"
+        dest: "{{ server_dir }}/data/"
+        remote_src: yes
+      when:
+        - not world_dir.stat.exists
+        - found_backups.matched > 0
+
+    - name: Sincronizar docker-compose do Git
+      copy:
+        src: "../docker-compose.yaml"
+        dest: "{{ server_dir }}/docker-compose.yaml"
+        mode: '0644'
+
+    - name: Copiar arquivos de configuração de ambiente (.env)
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ server_dir }}/{{ item | basename }}"
+        mode: '0644'
+      loop:
+        - "../server.properties.env"
+        - "../plugins.env"
+
+    - name: Gerar prometheus.yml com credenciais injetadas
+      template:
+        src: templates/prometheus.yml.j2
+        dest: "{{ server_dir }}/prometheus.yml"
+        mode: '0644'
+      register: prometheus_config
+
+    - name: Sincronizar pasta data (plugins e configs) via rsync
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../data/"
+        dest: "{{ server_dir }}/data/"
+        delete: false
+        rsync_opts:
+          - "--exclude=*.jar"
+          - "--exclude=*.log"
+
+    - name: Subir/Garantir containers via Docker Compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ server_dir }}"
+        state: present
+
+    - name: Reiniciar containers se as configurações (.env ou prometheus.yml) mudaram
+      community.docker.docker_compose_v2:
+        project_src: "{{ server_dir }}"
+        state: restarted
+      when: env_file.changed or prometheus_config.changed

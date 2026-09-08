@@ -1,0 +1,51 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ansible/**'
+      - 'data/plugins/**'
+      - 'data/config/**'
+      - 'data/*.yml'
+      - 'docker-compose*.yml'
+      - 'docker-compose*.yaml'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      #- name: Setup Docker & Ansible
+      #  run: |
+      #    sudo apt update
+      #    sudo apt install -y ansible
+      #    ansible-galaxy collection install community.docker
+      
+      - name: Exec Ansible Playbook
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          RCON_PASS: ${{ secrets.RCON_PASS }}
+          MC_PORT: ${{ secrets.MC_PORT || vars.MC_PORT || '25565' }}
+          RCON_PORT: ${{ secrets.RCON_PORT || vars.RCON_PORT || '25575' }}
+          PROM_URL: ${{ secrets.PROM_URL }}
+          PROM_USER: ${{ secrets.PROM_USER }}
+          PROM_PASS: ${{ secrets.PROM_PASS }}
+          R2_ACCESS_ID: ${{ secrets.R2_ACCESS_ID }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
