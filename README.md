@@ -33,6 +33,8 @@ Para quem tem curiosidade de como a máquina roda por baixo dos panos, o projeto
 
 - Containers: Docker Compose (itzg/minecraft-server + itzg/mc-backup).
 
+- Versionamento: Plugins e Configurações versionadas, se der pau é só voltar para quando funcionava.
+
 - CI/CD: GitHub Actions + Ansible Playbooks.
 
 - Disaster Recovery: Se a VM for recriada do zero, o Ansible detecta a ausência do mundo e restaura o .tar.gz mais recente do Cloudflare R2 antes de subir o container.
