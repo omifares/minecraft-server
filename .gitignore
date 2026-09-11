@@ -25,6 +25,14 @@ data/*.json
 
 # Plugin binaries and data
 data/plugins/*/
-!data/plugins/*.jar
 prometheus.yml
 data/plugins/*.jar
+!data/plugins/floodgate/config.yml
+!data/plugins/Geyser-Spigot/config.yml
+
+
+data/eula.txt
+data/server.properties
+data/bluemap/
+data/plugins/.var-list-manifest.json
+data/plugins/Essentials/upgrades-done.yml
