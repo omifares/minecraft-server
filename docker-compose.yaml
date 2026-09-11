@@ -13,8 +13,8 @@ services:
     ports:
       - "${MC_PORT}:25565/tcp" 
       - "${MC_PORT}:25565/udp" 
-      - "${RCON_PORT}:25575/udp"
-      - "${RCON_PORT}:25575/tcp"
+      - "${RCON_PORT}:${RCON_PORT}/udp"
+      - "${RCON_PORT}:${RCON_PORT}/tcp"
       - "19132:19132/udp"
     environment:
       EULA: "TRUE"
