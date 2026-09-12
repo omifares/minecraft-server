@@ -11,11 +11,10 @@ services:
       - server.properties.env
       - plugins.env
     ports:
-      - "${MC_PORT}:25565/tcp" 
-      - "${MC_PORT}:25565/udp" 
-      - "${RCON_PORT}:${RCON_PORT}/udp"
-      - "${RCON_PORT}:${RCON_PORT}/tcp"
-      - "19132:19132/udp"
+        - "${MC_PORT}:25565/tcp" # Java
+        - "${MC_PORT}:25565/udp" # Bedrock
+        - "55702:55702/tcp" # LiveKit
+        - "55702:55702/udp"
     environment:
       EULA: "TRUE"
       TYPE: "PAPER"
@@ -45,6 +44,7 @@ services:
     environment:
       RCON_HOST: "mc-server"
       RCON_PASSWORD: "${RCON_PASS}"
+      RCON_PORT: "25575"
       BACKUP_INTERVAL: "24h"
       PRUNE_BACKUPS_COUNT: 3
       INITIAL_DELAY: "1m"
