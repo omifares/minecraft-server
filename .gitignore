@@ -5,6 +5,7 @@ data/.rcon-cli.yaml
 !server.properties.env
 !plugins.env
 !.env.example
+rclone.conf
 
 # Backups & MC Worlds
 backups/
